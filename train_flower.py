@@ -16,6 +16,8 @@ import tensorflow as tf
 from ssd import SSD300
 from ssd_training import MultiboxLoss
 from ssd_utils import BBoxUtility
+from keras_func import *
+
 
 plt.rcParams['figure.figsize'] = (8, 8)
 plt.rcParams['image.interpolation'] = 'nearest'
@@ -30,7 +32,7 @@ priors = pickle.load(open('prior_boxes_ssd300.pkl', 'rb'))
 bbox_util = BBoxUtility(NUM_CLASSES, priors)
 
 # gt = pickle.load(open('gt_pascal.pkl', 'rb'))
-gt = pickle.load(open('flower.pkl', 'rb')) #教師データロード
+gt = pickle.load(open('flower89.pkl', 'rb')) #教師データロード
 keys = sorted(gt.keys())     #ファイル名でソート
 num_train = int(round(0.8 * len(keys)))  #データの8割を訓練データに
 train_keys = keys[:num_train]
@@ -210,7 +212,7 @@ class Generator(object):
                     targets = []
                     yield preprocess_input(tmp_inp), tmp_targets
 
-path_prefix = '/media/ubtaiki/disk/dataset/flower/ori/' #原画像パス
+path_prefix = '/media/ubtaiki/disk/dataset/flower/test2/' #原画像パス
 gen = Generator(gt, bbox_util, 4, path_prefix,
                 train_keys, val_keys,
                 (input_shape[0], input_shape[1]), do_crop=False)
@@ -251,6 +253,8 @@ history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
                               nb_val_samples=gen.val_batches,
                               nb_worker=1)
 
+drowpltloss(history, "gragh/train=" + str(gen.train_batches) + "_lr=" + str(base_lr) + "_epoch=" + str(nb_epoch) + ".png")
+plt.figure()
 inputs = []     #inputsには画像配列 (画像数,300,300,3)
 images = []     #imagesには画像データ
 img_path = path_prefix + sorted(val_keys)[0]  #検証画像から1枚取得
@@ -284,7 +288,7 @@ for i, img in enumerate(images): #iは0,1,2と増えていく
 
     colors = plt.cm.hsv(np.linspace(0, 1, NUM_CLASSES)).tolist() #BBグラデーション
 
-    plt.imshow(img / 255.)
+    #plt.imshow(img / 255.)
     currentAxis = plt.gca() #ax取得
 
     for i in range(top_conf.shape[0]): #BB数

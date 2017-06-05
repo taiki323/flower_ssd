@@ -35,7 +35,8 @@ class XML_preprocessor(object):
             bounding_boxes = np.asarray(bounding_boxes)
             one_hot_classes = np.asarray(one_hot_classes)
             image_data = np.hstack((bounding_boxes, one_hot_classes))
-            self.data[image_name] = image_data
+            image_name2 = image_name.split("\\")[-1]
+            self.data[image_name2] = image_data #made in windows
 
     def _to_one_hot(self,name):
         one_hot_vector = [0] * self.num_classes
@@ -48,6 +49,6 @@ class XML_preprocessor(object):
 
 ## example on how to use it
 import pickle
-data = XML_preprocessor('/home/ubtaiki/git/mainGUI/output/').data
-pickle.dump(data,open('flower.pkl','wb'))
+data = XML_preprocessor('/media/ubtaiki/disk/dataset/flower/output/').data
+pickle.dump(data,open('../flower89.pkl','wb'))
 

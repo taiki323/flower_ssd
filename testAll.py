@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import  numpy as np
 from scipy.misc import imread
 import tensorflow as tf
+import os
 
 from ssd import SSD300
 from ssd_utils import BBoxUtility
@@ -27,36 +28,19 @@ NUM_CLASSES = len(voc_classes) + 1
 
 input_shape=(300, 300, 3)
 model = SSD300(input_shape, num_classes=NUM_CLASSES)
-model.load_weights('./checkpoints/weights_flower.299-1.10-3.52.hdf5', by_name=True)
+model.load_weights('./checkpoints/weights_flower.298-1.17-2.97.hdf5', by_name=True)
 bbox_util = BBoxUtility(NUM_CLASSES)
+
+path = "/media/ubtaiki/disk/dataset/flower/test/"
+imgNames = os.listdir(path)
 
 inputs = []
 images = []
-img_path = '/media/ubtaiki/disk/dataset/flower/test/G0017602.JPG'
-img = image.load_img(img_path, target_size=(300, 300))
-img = image.img_to_array(img)
-images.append(imread(img_path))
-inputs.append(img.copy())
-img_path = '/media/ubtaiki/disk/dataset/flower/test/G0728366.JPG'
-img = image.load_img(img_path, target_size=(300, 300))
-img = image.img_to_array(img)
-images.append(imread(img_path))
-inputs.append(img.copy())
-img_path = '/media/ubtaiki/disk/dataset/flower/test/GOPR7592.JPG'
-img = image.load_img(img_path, target_size=(300, 300))
-img = image.img_to_array(img)
-images.append(imread(img_path))
-inputs.append(img.copy())
-img_path = '/media/ubtaiki/disk/dataset/flower/test/GOPR7609.JPG'
-img = image.load_img(img_path, target_size=(300, 300))
-img = image.img_to_array(img)
-images.append(imread(img_path))
-inputs.append(img.copy())
-img_path = '/media/ubtaiki/disk/dataset/flower/test/GOPR7609.JPG'
-img = image.load_img(img_path, target_size=(300, 300))
-img = image.img_to_array(img)
-images.append(imread(img_path))
-inputs.append(img.copy())
+for img_path in imgNames:
+    img = image.load_img(path + img_path, target_size=(300, 300))
+    img = image.img_to_array(img)
+    images.append(imread(path + img_path))
+    inputs.append(img.copy())
 inputs = preprocess_input(np.array(inputs))
 
 preds = model.predict(inputs, batch_size=1, verbose=1)
@@ -66,7 +50,10 @@ results = bbox_util.detection_out(preds)
 a = model.predict(inputs, batch_size=1)
 b = bbox_util.detection_out(preds)
 
+count = 0
+
 for i, img in enumerate(images):
+    plt.figure()
     # Parse the outputs.
     det_label = results[i][:, 0]
     det_conf = results[i][:, 1]
@@ -76,7 +63,7 @@ for i, img in enumerate(images):
     det_ymax = results[i][:, 5]
 
     # Get detections with confidence higher than 0.6.
-    top_indices = [i for i, conf in enumerate(det_conf) if conf >= 0.4]
+    top_indices = [i for i, conf in enumerate(det_conf) if conf >= 0.6]
 
     top_conf = det_conf[top_indices]
     top_label_indices = det_label[top_indices].tolist()
@@ -98,10 +85,12 @@ for i, img in enumerate(images):
         score = top_conf[i]
         label = int(top_label_indices[i])
         label_name = voc_classes[label - 1]
-        display_txt = '{:0.2f}, {}'.format(score, label_name)
+        display_txt = '{:0.2f}'.format(score)
         coords = (xmin, ymin), xmax - xmin + 1, ymax - ymin + 1
         color = colors[label]
-        currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2))
+        currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=1))
         currentAxis.text(xmin, ymin, display_txt, bbox={'facecolor': color, 'alpha': 0.5})
 
-    plt.show()
+    #plt.show()
+    count += 1
+    plt.savefig("result/" + str(count) + ".jpg")
