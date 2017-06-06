@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import cv2
 import keras
 from keras.applications.imagenet_utils import preprocess_input
@@ -9,6 +10,7 @@ import  numpy as np
 from scipy.misc import imread
 import tensorflow as tf
 import os
+import random
 
 from ssd import SSD300
 from ssd_utils import BBoxUtility
@@ -28,15 +30,20 @@ NUM_CLASSES = len(voc_classes) + 1
 
 input_shape=(300, 300, 3)
 model = SSD300(input_shape, num_classes=NUM_CLASSES)
-model.load_weights('./checkpoints/weights_flower.298-1.17-2.97.hdf5', by_name=True)
+model.load_weights('./checkpoints/weights_flower_train=362_end.hdf5.h5', by_name=True)
 bbox_util = BBoxUtility(NUM_CLASSES)
 
-path = "/media/ubtaiki/disk/dataset/flower/test/"
+path = "/media/ubtaiki/disk/dataset/flower/rename/"
 imgNames = os.listdir(path)
+random.shuffle(imgNames)
 
 inputs = []
 images = []
+count = 0
 for img_path in imgNames:
+    if count >= 100:
+        break
+    count += 1
     img = image.load_img(path + img_path, target_size=(300, 300))
     img = image.img_to_array(img)
     images.append(imread(path + img_path))
@@ -94,3 +101,5 @@ for i, img in enumerate(images):
     #plt.show()
     count += 1
     plt.savefig("result/" + str(count) + ".jpg")
+    plt.close()
+    plt.close('all') #メモリ解放
