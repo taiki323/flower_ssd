@@ -16,6 +16,8 @@ import tensorflow as tf
 from ssd import SSD300
 from ssd_training import MultiboxLoss
 from ssd_utils import BBoxUtility
+from keras.callbacks import EarlyStopping
+from keras_func import *
 
 plt.rcParams['figure.figsize'] = (8, 8)
 plt.rcParams['image.interpolation'] = 'nearest'
@@ -230,8 +232,10 @@ for L in model.layers: #freezeで指定した層は訓練しない
 def schedule(epoch, decay=0.9):
     return base_lr * decay**(epoch)
 
-callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/weights.{epoch:02d}-{val_loss:.2f}.hdf5',
+callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/PASCALVOC_weights.hdf5',
                                              verbose=1,
+                                             save_best_only = True,
+                                             mode = "auto",
                                              save_weights_only=True), #各エポック終了後にモデルを保存
              keras.callbacks.LearningRateScheduler(schedule)] #学習係数を動的に変更
 
@@ -240,7 +244,7 @@ optim = keras.optimizers.Adam(lr=base_lr)
 model.compile(optimizer=optim,
               loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=2.0).compute_loss)  #?
 
-nb_epoch = 3
+nb_epoch = 150
 history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
                               nb_epoch, verbose=1,
                               callbacks=callbacks,
@@ -248,6 +252,7 @@ history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
                               nb_val_samples=gen.val_batches,
                               nb_worker=1)
 
+drowpltloss(history, "gragh/PASCALVOC.png")
 inputs = []     #inputsには画像配列 (画像数,300,300,3)
 images = []     #imagesには画像データ
 img_path = path_prefix + sorted(val_keys)[0]  #検証画像から1枚取得
@@ -298,4 +303,4 @@ for i, img in enumerate(images): #iは0,1,2と増えていく
         currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2)) #長方形プロット
         currentAxis.text(xmin, ymin, display_txt, bbox={'facecolor':color, 'alpha':0.5}) #label付け
 
-    plt.show()
+  #  plt.show()
