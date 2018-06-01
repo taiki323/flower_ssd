@@ -7,10 +7,11 @@ from keras.models import Model
 from keras.preprocessing import image
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
+import pickle, csv, random
 from random import shuffle
 from scipy.misc import imread
 from scipy.misc import imresize
+import pandas as pd
 import tensorflow as tf
 
 from ssd import SSD300
@@ -19,6 +20,7 @@ from ssd_utils import BBoxUtility
 from keras.callbacks import LambdaCallback
 from keras.callbacks import EarlyStopping
 from keras_func import *
+
 
 
 plt.rcParams['figure.figsize'] = (8, 8)
@@ -33,13 +35,18 @@ input_shape = (300, 300, 3)
 priors = pickle.load(open('prior_boxes_ssd300.pkl', 'rb'))
 bbox_util = BBoxUtility(NUM_CLASSES, priors)
 
+pkl = 'pkl/flower.pkl'
 # gt = pickle.load(open('gt_pascal.pkl', 'rb'))
-gt = pickle.load(open('flower.pkl', 'rb')) #教師データロード
+gt = pickle.load(open(pkl, 'rb')) #教師データロード
 keys = sorted(gt.keys())     #ファイル名でソート
-num_train = int(round(0.8 * len(keys)))  #データの8割を訓練データに
+#num_train = int(round(0.8 * len(keys)))  #データの8割を訓練データに
+num_train = 900
 train_keys = keys[:num_train]
 val_keys = keys[num_train:]              #データの2割を検証データに
 num_val = len(val_keys)                  #検証データ数
+
+def schedule(epoch, decay=0.9):
+    return base_lr * decay**(epoch)
 
 class Generator(object):
     def __init__(self, gt, bbox_util,
@@ -214,55 +221,68 @@ class Generator(object):
                     targets = []
                     yield preprocess_input(tmp_inp), tmp_targets
 
-path_prefix = '/media/ubtaiki/disk/dataset/flower/flower_300/' #原画像パス
-gen = Generator(gt, bbox_util, 4, path_prefix,
-                train_keys, val_keys,
-                (input_shape[0], input_shape[1]), do_crop=False)
+column = ["pickle", "optimizer","batch_size", "base_lr", "train_loss", "val_loss"]
+path_prefix = '/home/minelab/dataset/flower_300/' #原画像パス
+batch_sizes = [4,8,16,32]
+base_lr_list = [0.000003,0.000005,0.000007,0.000009,0.000011,0.00003,0.00005,0.00007,0.00009,0.0003,0.0005,0.0007,0.0009]
+base_lr_list = [3e-5]
 
-model = SSD300(input_shape, num_classes=NUM_CLASSES)
-model.load_weights('weights_SSD300.hdf5', by_name=True)
+for base_lr in range(100000):
+    batch_size = random.choice(batch_sizes)
+    base_lr = random.uniform(9e-6, 9e-4)
+    print "batch_size = " + str(batch_size)
+    print "base_lr = " + str(base_lr)
 
-freeze = ['input_1', 'conv1_1', 'conv1_2', 'pool1',  #VGGをフリーズ
-          'conv2_1', 'conv2_2', 'pool2',
-          'conv3_1', 'conv3_2', 'conv3_3', 'pool3']#,
-#           'conv4_1', 'conv4_2', 'conv4_3', 'pool4']
+    gen = Generator(gt, bbox_util, batch_size, path_prefix,
+                    train_keys, val_keys,
+                    (input_shape[0], input_shape[1]), do_crop=False)
 
-for L in model.layers: #freezeで指定した層は訓練しない
-    if L.name in freeze:
-        L.trainable = False
+    model = SSD300(input_shape, num_classes=NUM_CLASSES)
+    model.load_weights('weights_SSD300.hdf5', by_name=True)
 
-def schedule(epoch, decay=0.9):
-    return base_lr * decay**(epoch)
+    freeze = ['input_1', 'conv1_1', 'conv1_2', 'pool1',  #VGGをフリーズ
+              'conv2_1', 'conv2_2', 'pool2',
+              'conv3_1', 'conv3_2', 'conv3_3', 'pool3']#,
+    #           'conv4_1', 'conv4_2', 'conv4_3', 'pool4']
 
-#plot_loss_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: plt.plot(np.arange(epoch), logs['loss']))
-#callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/weights_flower.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5',
-callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/weights_flower_train=' + str(gen.train_batches) + '.hdf5',
-                                             verbose=1,
-                                             save_best_only = True,
-                                             mode = "auto",
-                                             save_weights_only=True), #各エポック終了後にモデルを保存
-             keras.callbacks.LearningRateScheduler(schedule),#学習係数を動的に変更
-             EarlyStopping(monitor='val_loss',patience=100),
-#             plot_loss_callback,
-             ]
+    for L in model.layers: #freezeで指定した層は訓練しない
+        if L.name in freeze:
+            L.trainable = False
 
-base_lr = 3e-4
-optim = keras.optimizers.Adam(lr=base_lr)
-model.compile(optimizer=optim,
-              loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=2.0).compute_loss)  #?
+    early_stop = EarlyStopping(patience=30)
+
+    #plot_loss_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: plt.plot(np.arange(epoch), logs['loss']))
+    #callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/weights_flower.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5',
+    callbacks = [#keras.callbacks.ModelCheckpoint('./checkpoints/flower_weights_batch=' + str(batch_size) + '_lr=' + str(base_lr) + ',0.001004.hdf5',
+                     #                                verbose=1,
+                     #                                save_best_only = True,
+                     #                                mode = "auto",
+                     #                                save_weights_only=True), #各エポック終了後にモデルを保存
+                     #early_stop,
+                     keras.callbacks.LearningRateScheduler(schedule)] #学習係数を動的に変更
+
+    optim = keras.optimizers.Adam(lr=base_lr)
+    model.compile(optimizer=optim,
+                  loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=2.0).compute_loss)  #?
 
 
-nb_epoch = 100
-history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
-                              nb_epoch, verbose=1,
-                              callbacks=callbacks,
-                              validation_data=gen.generate(False), #?
-                              nb_val_samples=gen.val_batches,
-                              nb_worker=1)
+    nb_epoch = 50
+    history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
+                                  nb_epoch, verbose=1,
+                                  callbacks=callbacks,
+                                  validation_data=gen.generate(False), #?
+                                  nb_val_samples=gen.val_batches,
+                                  nb_worker=1)
 
-model.save_weights('./checkpoints/weights_flower_train=' + str(gen.train_batches) + '_end.hdf5')
-drowpltloss(history, "gragh/train=" + str(gen.train_batches) + "_lr=" + str(base_lr) + "_epoch=" + str(nb_epoch) + ".png")
-plt.figure()
+
+    drowpltloss(history, "gragh/flower_batch=" + str(batch_size)  + "_lr=" + str(base_lr) + ",0.001004.png",0,4.5)
+    cs = [pkl.split("/")[1],"Adam",batch_size,base_lr,min(history.history['loss']),min(history.history['val_loss'])]
+    with open('result_' + pkl.split("/")[1] + '.csv', 'a') as f:
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerow(cs)
+
+
+""""
 inputs = []     #inputsには画像配列 (画像数,300,300,3)
 images = []     #imagesには画像データ
 img_path = path_prefix + sorted(val_keys)[0]  #検証画像から1枚取得
@@ -296,7 +316,7 @@ for i, img in enumerate(images): #iは0,1,2と増えていく
 
     colors = plt.cm.hsv(np.linspace(0, 1, NUM_CLASSES)).tolist() #BBグラデーション
 
-    #plt.imshow(img / 255.)
+    plt.imshow(img / 255.)
     currentAxis = plt.gca() #ax取得
 
     for i in range(top_conf.shape[0]): #BB数
@@ -313,4 +333,5 @@ for i, img in enumerate(images): #iは0,1,2と増えていく
         currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2)) #長方形プロット
         currentAxis.text(xmin, ymin, display_txt, bbox={'facecolor':color, 'alpha':0.5}) #label付け
 
-    #plt.show()
+  #  plt.show()
+"""""

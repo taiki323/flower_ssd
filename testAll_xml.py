@@ -9,16 +9,22 @@ import matplotlib.pyplot as plt
 import  numpy as np
 from scipy.misc import imread
 import tensorflow as tf
-import os
+import os,pickle
 import random
+from  Exclusion import *
 
 from ssd import SSD300
 from ssd_utils import BBoxUtility
 
-hdf5 = "flower_weights_batch=8_lr=3e-05.hdf5"
-xmlpath = "/home/minelab/dataset/test/"
+hdf5 = "flower_weights_batch=4_lr=3e-05,0.001004.hdf5"
+xmlpath = "/home/minelab/dataset/xml/test/"
 path = "/home/minelab/dataset/rename/"
-conf_rate = 0.4
+conf_rate = 0.6
+dir = "result/" + hdf5 + "_conf=" + str(conf_rate)
+
+f = open('pkl/test0.001004.pkl', 'rb')
+data = pickle.load(f)
+f.close()
 
 plt.rcParams['figure.figsize'] = (8, 8)
 plt.rcParams['image.interpolation'] = 'nearest'
@@ -37,15 +43,19 @@ model = SSD300(input_shape, num_classes=NUM_CLASSES)
 model.load_weights('./checkpoints/' + hdf5, by_name=True)
 bbox_util = BBoxUtility(NUM_CLASSES)
 
-imgNames = os.listdir(path)
+imgNames = os.listdir(xmlpath)
 random.shuffle(imgNames)
+for i, img in enumerate(imgNames):
+    imgNames[i] = img.replace("xml","jpg")
 
+
+areas = []
 inputs = []
 images = []
 count = 0
 for img_path in imgNames:
-    if count >= 100:
-        break
+   # if count >= 100:
+   #     break
     count += 1
     img = image.load_img(path + img_path, target_size=(300, 300))
     img = image.img_to_array(img)
@@ -61,6 +71,8 @@ a = model.predict(inputs, batch_size=1)
 b = bbox_util.detection_out(preds)
 
 count = 0
+if os.path.isdir(dir) == False:
+    os.mkdir(dir)
 
 for i, img in enumerate(images):
     plt.figure()
@@ -101,8 +113,24 @@ for i, img in enumerate(images):
         currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=1))
         currentAxis.text(xmin, ymin, display_txt, bbox={'facecolor': color, 'alpha': 0.5})
 
+        loc = [top_xmin[i],top_ymin[i],top_xmax[i],top_ymax[i],top_conf[i]]
+        areas.append(calcRectangle(loc))
+
+    # true BB
+    for bb in data[imgNames[count]]:
+        xmin = int(round(bb[0] * img.shape[1]))
+        ymin = int(round(bb[1] * img.shape[0]))
+        xmax = int(round(bb[2] * img.shape[1]))
+        ymax = int(round(bb[3] * img.shape[0]))
+        coords = (xmin, ymin), xmax - xmin + 1, ymax - ymin + 1
+        currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor="blue", linewidth=1))
+
     #plt.show()
+    #print str(count) + imgNames[count]
+    plt.savefig(dir + "/result_" + imgNames[count])
     count += 1
-    plt.savefig("result/" + str(count) + ".jpg")
     plt.close()
     plt.close('all') #メモリ解放
+
+print "end"
+print min(areas)
