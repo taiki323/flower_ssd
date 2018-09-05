@@ -1,5 +1,5 @@
 import pickle
-f = open('flower0.002.pkl', 'rb')
+f = open('pkl/crop_flower.pkl', 'rb')
 data = pickle.load(f)
 f.close()
 print(data.keys())

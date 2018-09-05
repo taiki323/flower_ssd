@@ -49,6 +49,8 @@ class XML_preprocessor(object):
 
 ## example on how to use it
 import pickle
-data = XML_preprocessor('/home/minelab/dataset/xml/output/').data
-pickle.dump(data,open('../pkl/flower.pkl','wb'))
+#data = XML_preprocessor('/home/minelab/dataset/xml/test_nougi/').data
+data = XML_preprocessor('/home/minelab/dataset/xml/test/').data
+#pickle.dump(data,open('../pkl/nougi_flower3.pkl','wb'))
+pickle.dump(data,open('../pkl/test_map.pkl','wb'))
 

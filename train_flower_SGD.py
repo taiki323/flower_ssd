@@ -35,14 +35,12 @@ input_shape = (300, 300, 3)
 priors = pickle.load(open('prior_boxes_ssd300.pkl', 'rb'))
 bbox_util = BBoxUtility(NUM_CLASSES, priors)
 
-pkl = 'pkl/crop_flower.pkl'
-path_prefix = '/home/minelab/dataset/flower_300/' #原画像パス
+pkl = 'pkl/flower.pkl'
 # gt = pickle.load(open('gt_pascal.pkl', 'rb'))
 gt = pickle.load(open(pkl, 'rb')) #教師データロード
 keys = sorted(gt.keys())     #ファイル名でソート
-random.shuffle(keys)
-num_train = int(round(0.8 * len(keys)))  #データの8割を訓練データに
-#num_train = 900
+#num_train = int(round(0.8 * len(keys)))  #データの8割を訓練データに
+num_train = 900
 train_keys = keys[:num_train]
 val_keys = keys[num_train:]              #データの2割を検証データに
 num_val = len(val_keys)                  #検証データ数
@@ -224,17 +222,22 @@ class Generator(object):
                     yield preprocess_input(tmp_inp), tmp_targets
 
 column = ["pickle", "optimizer","batch_size", "base_lr", "train_loss", "val_loss"]
-batch_sizes = [4,8,16]
-#base_lr_list = [0.000003,0.000005,0.000007,0.000009,0.000011,0.00003,0.00005,0.00007,0.00009,0.0003,0.0005,0.0007,0.0009]
-#base_lr_list = [3e-5]
+path_prefix = '/home/minelab/dataset/flower_300/' #原画像パス
+batch_sizes = [4,8,16,32]
+SGD_flag = 1
 
 for base_lr in range(1):
-    batch_size = random.choice(batch_sizes)
-    base_lr = random.uniform(2e-5, 4e-5)
-    batch_size = 4
-    base_lr = 3e-5
+    #batch_size = random.choice(batch_sizes)
+    batch_size = 32
+    base_lr = random.uniform(0.0002, 0.0004)
+    decay_lr = random.uniform(0.0001, 0.00001)
+    base_lr = 0.000276594597079214
+    decay_lr = 0.0000666831799375426
+
+
     print "batch_size = " + str(batch_size)
     print "base_lr = " + str(base_lr)
+    print "decay = "  + str(decay_lr)
 
     gen = Generator(gt, bbox_util, batch_size, path_prefix,
                     train_keys, val_keys,
@@ -256,20 +259,22 @@ for base_lr in range(1):
 
     #plot_loss_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: plt.plot(np.arange(epoch), logs['loss']))
     #callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/weights_flower.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5',
-    callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/crop_flip/crop_flip_adam_flower_weights_batch=' + str(batch_size) + '_lr=' + str(base_lr) + '.hdf5',
+    callbacks = [keras.callbacks.ModelCheckpoint('./checkpoints/SGD/flower_weights_batch=' + str(batch_size) + '_lr=' + str(base_lr) + ',0.001004.hdf5',
                                                      verbose=1,
                                                      save_best_only = True,
                                                      mode = "auto",
                                                      save_weights_only=True), #各エポック終了後にモデルを保存
                      early_stop,
-                     keras.callbacks.LearningRateScheduler(schedule)] #学習係数を動的に変更
+    #                 keras.callbacks.LearningRateScheduler(schedule)
+    ] #学習係数を動的に変更
 
-    optim = keras.optimizers.Adam(lr=base_lr)
+    optim = keras.optimizers.SGD(lr=base_lr,momentum=0.9,decay=decay_lr)
+    #optim = keras.optimizers.Adam(lr=base_lr)
     model.compile(optimizer=optim,
                   loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=2.0).compute_loss)  #?
 
 
-    nb_epoch = 10000
+    nb_epoch = 1000
     history = model.fit_generator(gen.generate(True), gen.train_batches, #学習
                                   nb_epoch, verbose=1,
                                   callbacks=callbacks,
@@ -278,8 +283,8 @@ for base_lr in range(1):
                                   nb_worker=1)
 
 
-    drowpltloss(history, "gragh/crop_flip/crop_flip_flower_batch=" + str(batch_size)  + "_lr=" + str(base_lr) + ".png",0,4.5)
-    cs = [pkl.split("/")[1],"Adam",batch_size,base_lr,min(history.history['loss']),min(history.history['val_loss'])]
+    drowpltloss(history, "gragh/SGD/flower_batch=" + str(batch_size) + "_lr=" + str(base_lr) + "_decay=" + str(decay_lr) + ",0.001004.png", 0, 4.5)
+    cs = [pkl.split("/")[1],"SGD",batch_size,base_lr,min(history.history['loss']),min(history.history['val_loss']), decay_lr]
     with open('result_' + pkl.split("/")[1] + '.csv', 'a') as f:
         writer = csv.writer(f, lineterminator='\n')
         writer.writerow(cs)

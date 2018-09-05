@@ -25,8 +25,7 @@ def boxsize(data):
 def caulcsizeratio():
     sizeacc.append((len(filter(lambda size: size < 20, detectsizelist)) / float(len(filter(lambda size: size < 20, boxsizelist)))) )
     #sizeacc.append((len(filter(lambda size: size < 80 and size >= 10, detectsizelist)) / float(len(filter(lambda size: size < 80 and size >= 10, boxsizelist)))) * 100)
-    sizeacc.append((len(filter(lambda size: size >= 10, detectsizelist)) / float(len(filter(lambda size: size >= 10, boxsizelist)))) )
-
+    sizeacc.append((len(filter(lambda size: size >= 20, detectsizelist)) / float(len(filter(lambda size: size >= 20, boxsizelist)))) )
 def calcIOU(top_xmin, top_ymin, top_xmax, top_ymax, btop_xmin, btop_ymin, btop_xmax, btop_ymax):
     ov_xmin = max(top_xmin, btop_xmin)
     ov_ymin = max(top_ymin, btop_ymin)
@@ -144,17 +143,26 @@ def non_maximum_supression(top_xmin,top_ymin,top_xmax,top_ymax,top_conf,top_labe
                     reducelist.append(i)
     return reducelist
 
+def reducesize(top_xmin,top_ymin,top_xmax,top_ymax):
+    reducelist2 = []
+    for i in range(len(top_xmin)):
+        size = abs(top_xmax[i] - top_xmin[i]) * abs(top_ymax[i] - top_ymin[i]) * 1000
+        if size < 5:
+            reducelist2.append(i)
+    return reducelist2
+
 ###############################
 hdf5 = "normal/flower_weights_batch=4_lr=3e-05.hdf5"
 hdf5 = "flip/flip_adam_flower_weights_batch=4_lr=3e-05,0.001004.hdf5"
-hdf5 = "randomErasing_flip/randomErasing0.3_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
+hdf5 = "randomErasing_flip/randomErasing0.4_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
 hdf5 = "crop_flip/crop_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
 #hdf5 = "mask/flip/mask_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
 #hdf5 = "roll_flip/roll_flip_adam_flower_weights_batch=4_lr=3e-05,0.001004.hdf5"
 testflag = 1 #1 = nougi, 0=nougakubu
+imgsaveslag = 1
 path = "/home/minelab/dataset/rename/"
 #path = "/home/minelab/dataset/mask2/"
-conf_rate = 0.2
+conf_rate = 0.6
 io_range = 0.1
 ##############################
 
@@ -200,7 +208,7 @@ for i, img in enumerate(imgNames):
 
 
 areas = []
-inputs = []
+inputs1 = []
 images = []
 names = []
 count = 0
@@ -212,20 +220,20 @@ for img_path in imgNames:
     img = image.img_to_array(img)
     images.append(imread(path + img_path))
     names.append(img_path)
-    inputs.append(img.copy())
-inputs = preprocess_input(np.array(inputs))
+    inputs1.append(img.copy())
+inputs = preprocess_input(np.array(inputs1))
 
 preds = model.predict(inputs, batch_size=1, verbose=1)
 
 results = bbox_util.detection_out(preds)
 
-a = model.predict(inputs, batch_size=1)
-b = bbox_util.detection_out(preds)
+#a = model.predict(inputs, batch_size=1)
+#b = bbox_util.detection_out(preds)
 print ("\n")
 dir = "result/" + testdir + hdf5
 print dir
 count = 0
-#for a in range(38):
+#for a in range(30):
 for a in range(1):
     dir = "result/" + testdir + hdf5 + "_conf=" + str(conf_rate)
     types = [('a',int),('b', float)]
@@ -243,10 +251,32 @@ for a in range(1):
     presicion = 0
     recall = 0
 
-    if os.path.isdir(dir) == False:
-        os.mkdir(dir)
-
+    if imgsaveslag == 1:
+        if os.path.isdir(dir) == False:
+            os.mkdir(dir)
+    move = 150
+    window_size = 300
     for i, img in enumerate(images): #出力200 per 1 image
+        #---------------------------------------#
+        tmpnum1 = 0
+        imgcount = 0
+        inputlist = []
+        bunkatuh = range((img.shape[0] / move) - 1)
+        bunkatuw = range((img.shape[1] / move) - 1)
+        for h in bunkatuh:
+            tmpnum2 = 0
+            for w in bunkatuw:
+                tmpimg = img[tmpnum1:tmpnum1 + window_size, tmpnum2:tmpnum2 + window_size]
+                tmpimg = cv2.resize(tmpimg, (300, 300))
+                inputlist.append(tmpimg)
+                imgcount += 1
+                tmpnum2 += move
+            tmpnum1 += move
+        inputs = preprocess_input(np.array(inputlist,dtype='float'))
+        preds = model.predict(inputs, batch_size=1, verbose=1)
+        results2 = bbox_util.detection_out(preds)
+        #----------------------------------------#
+
         bb_num = 0  #出力BB数
         plt.figure()
         # Parse the outputs.
@@ -266,16 +296,52 @@ for a in range(1):
         top_ymin = det_ymin[top_indices]
         top_xmax = det_xmax[top_indices]
         top_ymax = det_ymax[top_indices]
+        """
+        top_conf = np.array([])
+        top_label_indices = np.array([])
+        top_xmin = np.array([])
+        top_ymin = np.array([])
+        top_xmax = np.array([])
+        top_ymax = np.array([])
+        """
+
+        #--------------------------------------------#
+        for s in range(imgcount): #出力200 per 1 crop
+            w = s % len(bunkatuw)
+            h = s / len(bunkatuw)
+            tmp_label = results2[s][:, 0]
+            tmp_conf = results2[s][:, 1]
+            tmp_xmin = results2[s][:, 2]
+            tmp_ymin = results2[s][:, 3]
+            tmp_xmax = results2[s][:, 4]
+            tmp_ymax = results2[s][:, 5]
+            top_indices2 = [sv for sv, conf2 in enumerate(tmp_conf) if conf2 >= conf_rate]
+
+            top_conf2 = tmp_conf[top_indices2]
+            top_label_indices2 = tmp_label[top_indices2].tolist()
+            top_xmin2 = (w * move + window_size * tmp_xmin[top_indices2]) / img.shape[1]
+            top_ymin2 = (h * move + window_size * tmp_ymin[top_indices2]) / img.shape[0]
+            top_xmax2 = (w * move + window_size * tmp_xmax[top_indices2]) / img.shape[1]
+            top_ymax2 = (h * move + window_size * tmp_ymax[top_indices2]) / img.shape[0]
+            top_conf = np.append(top_conf,top_conf2)
+            top_label_indices = np.append(top_label_indices,top_label_indices2)
+            top_xmin = np.append(top_xmin,top_xmin2)
+            top_ymin = np.append(top_ymin,top_ymin2)
+            top_xmax = np.append(top_xmax,top_xmax2)
+            top_ymax = np.append(top_ymax,top_ymax2)
+        #--------------------------------------------#
 
         reducelist = non_maximum_supression(top_xmin,top_ymin,top_xmax,top_ymax,top_conf,top_label_indices, io_range)
-        top_reducedindices = list(set(top_indices) - set(reducelist))
+        top_reducedindices = list(set(range(len(top_xmin))) - set(reducelist))
+        reducelist2 = reducesize(top_xmin,top_ymin,top_xmax,top_ymax)
+        top_reducedindices = list(set(top_reducedindices) - set(reducelist2))
 
-        top_conf = det_conf[top_reducedindices]
-        top_label_indices = det_label[top_reducedindices].tolist()
-        top_xmin = det_xmin[top_reducedindices]
-        top_ymin = det_ymin[top_reducedindices]
-        top_xmax = det_xmax[top_reducedindices]
-        top_ymax = det_ymax[top_reducedindices]
+        top_conf = top_conf[top_reducedindices]
+        top_label_indices = top_label_indices[top_reducedindices].tolist()
+        top_xmin = top_xmin[top_reducedindices]
+        top_ymin = top_ymin[top_reducedindices]
+        top_xmax = top_xmax[top_reducedindices]
+        top_ymax = top_ymax[top_reducedindices]
 
         colors = plt.cm.hsv(np.linspace(0, 1, 21)).tolist()
 
@@ -319,7 +385,8 @@ for a in range(1):
 
         #plt.show()
         #print str(count) + imgNames[count]
-        plt.savefig(dir + "/result_" + imgNames[count])
+        if imgsaveslag == 1:
+            plt.savefig(dir + "/result_" + imgNames[count])
         count += 1
         plt.close()
         plt.close('all') #メモリ解放

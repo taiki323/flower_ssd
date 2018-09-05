@@ -23,9 +23,9 @@ def boxsize(data):
             boxsizelist.append((abs(v[2]-v[0]) * abs(v[3]-v[1])) * 1000)
 
 def caulcsizeratio():
-    sizeacc.append((len(filter(lambda size: size < 20, detectsizelist)) / float(len(filter(lambda size: size < 20, boxsizelist)))) )
+    sizeacc.append((len(filter(lambda size: size < 10, detectsizelist)) / float(len(filter(lambda size: size < 10, boxsizelist)))) * 100)
     #sizeacc.append((len(filter(lambda size: size < 80 and size >= 10, detectsizelist)) / float(len(filter(lambda size: size < 80 and size >= 10, boxsizelist)))) * 100)
-    sizeacc.append((len(filter(lambda size: size >= 10, detectsizelist)) / float(len(filter(lambda size: size >= 10, boxsizelist)))) )
+    sizeacc.append((len(filter(lambda size: size >= 10, detectsizelist)) / float(len(filter(lambda size: size >= 10, boxsizelist)))) * 100)
 
 def calcIOU(top_xmin, top_ymin, top_xmax, top_ymax, btop_xmin, btop_ymin, btop_xmax, btop_ymax):
     ov_xmin = max(top_xmin, btop_xmin)
@@ -148,7 +148,6 @@ def non_maximum_supression(top_xmin,top_ymin,top_xmax,top_ymax,top_conf,top_labe
 hdf5 = "normal/flower_weights_batch=4_lr=3e-05.hdf5"
 hdf5 = "flip/flip_adam_flower_weights_batch=4_lr=3e-05,0.001004.hdf5"
 hdf5 = "randomErasing_flip/randomErasing0.3_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
-hdf5 = "crop_flip/crop_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
 #hdf5 = "mask/flip/mask_flip_adam_flower_weights_batch=4_lr=3e-05.hdf5"
 #hdf5 = "roll_flip/roll_flip_adam_flower_weights_batch=4_lr=3e-05,0.001004.hdf5"
 testflag = 1 #1 = nougi, 0=nougakubu
@@ -225,8 +224,8 @@ print ("\n")
 dir = "result/" + testdir + hdf5
 print dir
 count = 0
-#for a in range(38):
 for a in range(1):
+#for a in range(1):
     dir = "result/" + testdir + hdf5 + "_conf=" + str(conf_rate)
     types = [('a',int),('b', float)]
     global aplist #予測が正解かどうか(0,1)とスコア
@@ -243,8 +242,8 @@ for a in range(1):
     presicion = 0
     recall = 0
 
-    if os.path.isdir(dir) == False:
-        os.mkdir(dir)
+#    if os.path.isdir(dir) == False:
+#        os.mkdir(dir)
 
     for i, img in enumerate(images): #出力200 per 1 image
         bb_num = 0  #出力BB数
@@ -319,24 +318,10 @@ for a in range(1):
 
         #plt.show()
         #print str(count) + imgNames[count]
-        plt.savefig(dir + "/result_" + imgNames[count])
+        #plt.savefig(dir + "/result_" + imgNames[count])
         count += 1
         plt.close()
         plt.close('all') #メモリ解放
 
-    aplist = np.array(aplist,dtype=types)
-    aplist = np.sort(aplist, order=['b'])[::-1]
-    precisionlist(aplist)
-    #map = truecalcmap(aplist)
-    map = calcmap(maplist)
     boxsize(data)
     caulcsizeratio()
-    recall = maplist[-1][3]
-    print str(conf_rate) + " " + str(io_range) + " " + str(map) + " " + str(recall) + " " + str(presicion) + " " + str(sizeacc)
-    #print sizeacc
-    cs = [pkl.split("/")[1], hdf5, conf_rate, map, recall, presicion, io_range, sizeacc[0],sizeacc[1]]
-    with open('result_map.csv', 'a') as f:
-        writer = csv.writer(f, lineterminator='\n')
-        writer.writerow(cs)
-    conf_rate += 0.02
-    #io_range += 0.01
